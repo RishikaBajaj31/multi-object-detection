@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -8,7 +9,8 @@ from types import SimpleNamespace
 
 import pandas as pd
 import streamlit as st
-from yt_dlp import YoutubeDL
+
+os.environ.setdefault("YOLO_CONFIG_DIR", str(Path(tempfile.gettempdir()) / "Ultralytics"))
 
 from main import run_pipeline
 
@@ -38,10 +40,9 @@ def resolve_default_video(target_path: Path) -> Path:
     Resolution order:
     1. bundled local sample in the repo
     2. downloaded local sample in the user's Downloads folder
-    3. backend download from the public source URL
 
     The public URL is intentionally kept out of the UI, but the summary JSON still records
-    the original source used for the assignment.
+    the original source used for the assignment when the local sample is available.
     """
     for candidate in LOCAL_DEFAULT_CANDIDATES:
         if candidate.exists():
@@ -49,26 +50,17 @@ def resolve_default_video(target_path: Path) -> Path:
             shutil.copy2(candidate, destination)
             return destination
 
-    return download_default_video(target_path)
+    raise FileNotFoundError(
+        "Default sample video is not bundled with the app. Upload a video or add "
+        f"`{DEFAULT_FILENAME}` to a `sample_videos` folder in the project."
+    )
 
 
-def download_default_video(target_path: Path) -> Path:
-    output_template = str(target_path / DEFAULT_FILENAME)
-    ydl_opts = {
-        "outtmpl": output_template,
-        "format": "mp4/bestvideo+bestaudio/best",
-        "noplaylist": True,
-        "quiet": True,
-        "merge_output_format": "mp4",
-    }
-
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([DEFAULT_SOURCE_URL])
-
-    downloaded_path = target_path / DEFAULT_FILENAME
-    if not downloaded_path.exists():
-        raise FileNotFoundError("Default sample video download did not produce the expected file.")
-    return downloaded_path
+def save_uploaded_video(uploaded_file, target_path: Path) -> Path:
+    suffix = Path(uploaded_file.name).suffix or ".mp4"
+    destination = target_path / f"uploaded_input{suffix}"
+    destination.write_bytes(uploaded_file.getbuffer())
+    return destination
 
 
 st.markdown(
@@ -94,7 +86,7 @@ st.markdown(
     <div class="hero-card">
         <div class="hero-title">Default Demo Source</div>
         <div class="hero-text">
-            The app runs a built-in public marathon sample by default and processes it with YOLOv8 + DeepSORT.
+            Upload a video, or let the app use a bundled local marathon sample when one is available.
             Results include annotated video, tracking CSV, summary JSON, preview image, and optional heatmap.
         </div>
     </div>
@@ -110,6 +102,12 @@ with col2:
 with col3:
     save_heatmap = st.checkbox("Save Heatmap", value=True)
 
+uploaded_video = st.file_uploader(
+    "Upload Video",
+    type=["mp4", "mov", "avi", "mkv"],
+    help="Leave empty to use the bundled local marathon sample when available.",
+)
+
 frame_skip = 2
 
 if st.button("Run Tracking", type="primary", use_container_width=True):
@@ -117,9 +115,14 @@ if st.button("Run Tracking", type="primary", use_container_width=True):
         tmp_path = Path(tmp_dir)
 
         try:
-            with st.spinner("Preparing the default public sports sample..."):
-                input_path = resolve_default_video(tmp_path)
-            source_url = DEFAULT_SOURCE_URL
+            if uploaded_video is not None:
+                with st.spinner("Saving uploaded video..."):
+                    input_path = save_uploaded_video(uploaded_video, tmp_path)
+                source_url = "user_upload"
+            else:
+                with st.spinner("Preparing the default public sports sample..."):
+                    input_path = resolve_default_video(tmp_path)
+                source_url = DEFAULT_SOURCE_URL
 
             output_dir = tmp_path / "outputs"
             args = SimpleNamespace(
@@ -167,8 +170,8 @@ if st.button("Run Tracking", type="primary", use_container_width=True):
             }
         except Exception as exc:
             st.error(
-                "Processing failed. If the automatic sample download is blocked, place "
-                f"`{DEFAULT_FILENAME}` in a `sample_videos` folder inside the project, or upload a video manually. "
+                "Processing failed. Upload a video manually, or place "
+                f"`{DEFAULT_FILENAME}` in a `sample_videos` folder inside the project for the built-in demo. "
                 f"Details: {exc}"
             )
 

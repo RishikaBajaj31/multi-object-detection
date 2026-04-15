@@ -91,11 +91,11 @@ streamlit run app.py
 The Streamlit interface lets a user:
 
 - upload a video optionally
-- click `Process Video`
+- click `Run Tracking`
 - preview and download generated outputs
 
-If no video is uploaded, the app automatically downloads and processes a built-in public marathon sample in the backend.
-For the most reliable local or deployed behavior, place the default sample video at `sample_videos/default_marathon.mp4`. The UI will use that hidden local sample first and only fall back to backend download if it is missing.
+If no video is uploaded, the app looks for a bundled local marathon sample instead of trying to scrape a remote video site at runtime.
+For the most reliable local or deployed behavior, place the default sample video at `sample_videos/default_marathon.mp4`. The UI will use that hidden local sample first and otherwise prompt the user to upload a video manually.
 
 ### Quick test on fewer frames
 
