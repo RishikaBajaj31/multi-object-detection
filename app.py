@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pandas as pd
 import streamlit as st
 
-os.environ.setdefault("YOLO_CONFIG_DIR", str(Path(tempfile.gettempdir()) / "Ultralytics"))
+os.environ.setdefault("YOLO_CONFIG_DIR", tempfile.gettempdir())
 
 from main import run_pipeline
 
@@ -24,8 +24,8 @@ if "result_bundle" not in st.session_state:
 st.title("Multi-Object Detection and Persistent ID Tracking")
 st.caption("DeepSORT-based public marathon tracking demo with downloadable outputs.")
 
-DEFAULT_SOURCE_URL = "https://samplelib.com/sample-mp4.html"
-DEFAULT_DOWNLOAD_URL = "https://samplelib.com/mp4/sample-30s.mp4"
+DEFAULT_SOURCE_URL = "https://pixabay.com/videos/marathon-marathon-runners-running-15741/"
+DEFAULT_DOWNLOAD_URL = "https://cdn.pixabay.com/video/2018/04/22/15741-266043634_large.mp4"
 DEFAULT_FILENAME = "default_marathon.mp4"
 PROJECT_ROOT = Path(__file__).resolve().parent
 LOCAL_DEFAULT_CANDIDATES = [
@@ -111,7 +111,7 @@ with col3:
 
 frame_skip = 2
 
-if st.button("Run Tracking", type="primary", use_container_width=True):
+if st.button("Run Tracking", type="primary", width="stretch"):
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
@@ -190,23 +190,23 @@ if result_bundle is not None:
             st.image(
                 result_bundle["preview_frame_bytes"],
                 caption="Annotated preview frame",
-                use_container_width=True,
+                width="stretch",
             )
 
     with insight_cols[1]:
         st.subheader("Tracking Summary")
         summary_table = pd.DataFrame(
             [
-                {"Metric": "Detector", "Value": summary["detector"]},
-                {"Metric": "Tracker", "Value": summary["tracking_algorithm"]},
-                {"Metric": "Frames Processed", "Value": summary["frames_processed"]},
-                {"Metric": "Frame Skip", "Value": summary.get("frame_skip", 1)},
-                {"Metric": "Unique Tracked Subjects", "Value": summary["unique_tracked_subjects"]},
-                {"Metric": "Processing Time (s)", "Value": summary["processing_seconds"]},
-                {"Metric": "Average Processing FPS", "Value": summary["average_processing_fps"]},
+                {"Metric": "Detector", "Value": str(summary["detector"])},
+                {"Metric": "Tracker", "Value": str(summary["tracking_algorithm"])},
+                {"Metric": "Frames Processed", "Value": str(summary["frames_processed"])},
+                {"Metric": "Frame Skip", "Value": str(summary.get("frame_skip", 1))},
+                {"Metric": "Unique Tracked Subjects", "Value": str(summary["unique_tracked_subjects"])},
+                {"Metric": "Processing Time (s)", "Value": str(summary["processing_seconds"])},
+                {"Metric": "Average Processing FPS", "Value": str(summary["average_processing_fps"])},
             ]
         )
-        st.dataframe(summary_table, use_container_width=True, hide_index=True)
+        st.dataframe(summary_table, width="stretch", hide_index=True)
 
         tracking_df = result_bundle["tracking_df"]
         if tracking_df is not None and not tracking_df.empty:
@@ -219,7 +219,7 @@ if result_bundle is not None:
 
     if result_bundle["heatmap_bytes"] is not None:
         st.subheader("Movement Heatmap")
-        st.image(result_bundle["heatmap_bytes"], caption="Movement heatmap", use_container_width=True)
+        st.image(result_bundle["heatmap_bytes"], caption="Movement heatmap", width="stretch")
 
     st.subheader("Downloads")
     download_cols = st.columns(4)
@@ -229,7 +229,7 @@ if result_bundle is not None:
             data=result_bundle["output_video_bytes"],
             file_name=result_bundle["output_video_name"],
             mime="video/mp4",
-            use_container_width=True,
+            width="stretch",
         )
     if result_bundle["tracking_log_bytes"] is not None:
         download_cols[1].download_button(
@@ -237,14 +237,14 @@ if result_bundle is not None:
             data=result_bundle["tracking_log_bytes"],
             file_name=result_bundle["tracking_log_name"],
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
     download_cols[2].download_button(
         "Summary JSON",
         data=result_bundle["summary_json_bytes"],
         file_name=result_bundle["summary_json_name"],
         mime="application/json",
-        use_container_width=True,
+        width="stretch",
     )
     if result_bundle["preview_frame_bytes"] is not None:
         download_cols[3].download_button(
@@ -252,7 +252,7 @@ if result_bundle is not None:
             data=result_bundle["preview_frame_bytes"],
             file_name=result_bundle["preview_frame_name"],
             mime="image/jpeg",
-            use_container_width=True,
+            width="stretch",
         )
 
     if result_bundle["heatmap_bytes"] is not None:
@@ -261,5 +261,5 @@ if result_bundle is not None:
             data=result_bundle["heatmap_bytes"],
             file_name=result_bundle["heatmap_name"],
             mime="image/jpeg",
-            use_container_width=True,
+            width="stretch",
         )
