@@ -101,8 +101,18 @@ def convert_video_for_web(video_path: Path):
         "-an",
         str(web_ready_path),
     ]
-    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    web_ready_path.replace(video_path)
+
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if web_ready_path.exists() and web_ready_path.stat().st_size > 0:
+            web_ready_path.replace(video_path)
+    except Exception as exc:
+        # Playback optimization should never break the main pipeline. If conversion
+        # fails on a hosted environment, we keep the original generated MP4.
+        print(f"Skipping web video conversion: {exc}", flush=True)
+    finally:
+        if web_ready_path.exists():
+            web_ready_path.unlink(missing_ok=True)
 
 
 def run_pipeline(args):
