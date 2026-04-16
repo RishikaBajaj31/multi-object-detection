@@ -3,12 +3,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import subprocess
 import time
 from pathlib import Path
 
 import cv2
-import imageio_ffmpeg
 
 from detection import DetectionConfig, YOLODetector
 from tracking import DeepSORTTracker, TrackerConfig
@@ -79,32 +77,6 @@ def create_video_writer(output_path: Path, fps: float, width: int, height: int):
     raise RuntimeError(f"Could not create video writer for output: {output_path}")
 
 
-def convert_video_for_web(video_path: Path):
-    """
-    Re-encode the generated video to H.264/yuv420p so browser players can render it.
-    This keeps the rest of the pipeline unchanged and only normalizes the final output.
-    """
-    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-    web_ready_path = video_path.with_name(f"{video_path.stem}_web.mp4")
-
-    command = [
-        ffmpeg_exe,
-        "-y",
-        "-i",
-        str(video_path),
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-movflags",
-        "+faststart",
-        "-an",
-        str(web_ready_path),
-    ]
-    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    web_ready_path.replace(video_path)
-
-
 def run_pipeline(args):
     input_path = Path(args.input)
     output_dir = Path(args.output_dir)
@@ -159,9 +131,9 @@ def run_pipeline(args):
             if args.max_frames and processed_frames > args.max_frames:
                 break
 
-            # Frame skipping is a practical CPU optimization for the live app/demo.
-            # We still preserve the same pipeline, but only run detector + tracker on
-            # every Nth frame to reduce total processing time.
+             # Frame skipping is a practical CPU optimization for the live app/demo.
+             # We still preserve the same pipeline, but only run detector + tracker on
+             # every Nth frame to reduce total processing time.
             if args.frame_skip > 1 and ((processed_frames - 1) % args.frame_skip != 0):
                 continue
 
@@ -193,8 +165,6 @@ def run_pipeline(args):
         capture.release()
         writer.release()
         csv_file.close()
-
-    convert_video_for_web(output_video_path)
 
     if args.save_heatmap and last_annotated_frame is not None:
         heatmap = tracker.build_heatmap_overlay(last_annotated_frame)
