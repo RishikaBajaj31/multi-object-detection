@@ -55,28 +55,6 @@ def create_csv_writer(path: Path):
     return csv_file, writer
 
 
-def create_video_writer(output_path: Path, fps: float, width: int, height: int):
-    """
-    Prefer a browser-friendly MP4 codec for Streamlit playback.
-
-    `avc1`/H.264 is much more likely to play inline in browsers than `mp4v`.
-    If the local OpenCV build cannot create an H.264 writer, we fall back to `mp4v`
-    so file generation still succeeds.
-    """
-    for codec in ("avc1", "H264", "mp4v"):
-        writer = cv2.VideoWriter(
-            str(output_path),
-            cv2.VideoWriter_fourcc(*codec),
-            fps,
-            (width, height),
-        )
-        if writer.isOpened():
-            return writer
-        writer.release()
-
-    raise RuntimeError(f"Could not create video writer for output: {output_path}")
-
-
 def run_pipeline(args):
     input_path = Path(args.input)
     output_dir = Path(args.output_dir)
@@ -113,7 +91,12 @@ def run_pipeline(args):
     summary_path = output_dir / f"{input_path.stem}_summary.json"
     heatmap_path = output_dir / f"{input_path.stem}_heatmap.jpg"
 
-    writer = create_video_writer(output_video_path, fps, width, height)
+    writer = cv2.VideoWriter(
+        str(output_video_path),
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        fps,
+        (width, height),
+    )
     csv_file, csv_writer = create_csv_writer(tracking_log_path)
 
     start_time = time.perf_counter()
