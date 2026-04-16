@@ -184,8 +184,6 @@ if result_bundle is not None:
     insight_cols = st.columns([1.5, 1.2])
     with insight_cols[0]:
         st.subheader("Tracked Output")
-        if result_bundle["output_video_bytes"] is not None:
-            st.video(result_bundle["output_video_bytes"])
         if result_bundle["preview_frame_bytes"] is not None:
             st.image(
                 result_bundle["preview_frame_bytes"],
