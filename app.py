@@ -112,53 +112,63 @@ with col3:
 frame_skip = 2
 
 if st.button("Run Tracking", type="primary", width="stretch"):
-    tmp_path = Path(tempfile.mkdtemp(prefix="mot_app_"))
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
 
-    try:
-        with st.spinner("Preparing the default public sports sample..."):
-            input_path = resolve_default_video(tmp_path)
-        source_url = DEFAULT_SOURCE_URL
+        try:
+            with st.spinner("Preparing the default public sports sample..."):
+                input_path = resolve_default_video(tmp_path)
+            source_url = DEFAULT_SOURCE_URL
 
-        output_dir = tmp_path / "outputs"
-        args = SimpleNamespace(
-            input=str(input_path),
-            output_dir=str(output_dir),
-            source_url=source_url,
-            model=model_name.strip() or "yolov8n.pt",
-            conf=0.35,
-            iou=0.45,
-            imgsz=int(image_size),
-            classes="0",
-            max_frames=0,
-            log_every=25,
-            trajectory_length=30,
-            save_heatmap=save_heatmap,
-            frame_skip=frame_skip,
-        )
+            output_dir = tmp_path / "outputs"
+            args = SimpleNamespace(
+                input=str(input_path),
+                output_dir=str(output_dir),
+                source_url=source_url,
+                model=model_name.strip() or "yolov8n.pt",
+                conf=0.35,
+                iou=0.45,
+                imgsz=int(image_size),
+                classes="0",
+                max_frames=0,
+                log_every=25,
+                trajectory_length=30,
+                save_heatmap=save_heatmap,
+                frame_skip=frame_skip,
+            )
 
-        with st.spinner("Processing video. This can take a few minutes on CPU."):
-            summary = run_pipeline(args)
+            with st.spinner("Processing video. This can take a few minutes on CPU."):
+                summary = run_pipeline(args)
 
-        output_video = Path(summary["output_video"])
-        tracking_log = Path(summary["tracking_log"])
-        preview_frame = Path(summary["preview_frame"])
-        heatmap_path = Path(summary["heatmap_path"]) if summary.get("heatmap_path") else None
-        summary_path = output_dir / f"{input_path.stem}_summary.json"
-        tracking_df = pd.read_csv(tracking_log) if tracking_log.exists() else pd.DataFrame()
-        st.session_state.result_bundle = {
-            "summary": summary,
-            "output_video_path": str(output_video) if output_video.exists() else None,
-            "tracking_log_path": str(tracking_log) if tracking_log.exists() else None,
-            "preview_frame_path": str(preview_frame) if preview_frame.exists() else None,
-            "summary_json_path": str(summary_path) if summary_path.exists() else None,
-            "heatmap_path": str(heatmap_path) if heatmap_path is not None and heatmap_path.exists() else None,
-            "tracking_df": tracking_df,
-        }
-    except Exception as exc:
-        st.error(
-            "Processing failed while preparing the default sample or running the pipeline. "
-            f"Details: {exc}"
-        )
+            output_video = Path(summary["output_video"])
+            tracking_log = Path(summary["tracking_log"])
+            preview_frame = Path(summary["preview_frame"])
+            heatmap_path = Path(summary["heatmap_path"]) if summary.get("heatmap_path") else None
+            summary_path = output_dir / f"{input_path.stem}_summary.json"
+            tracking_df = pd.read_csv(tracking_log) if tracking_log.exists() else pd.DataFrame()
+            st.session_state.result_bundle = {
+                "summary": summary,
+                "output_video_name": output_video.name if output_video.exists() else None,
+                "output_video_bytes": output_video.read_bytes() if output_video.exists() else None,
+                "tracking_log_name": tracking_log.name if tracking_log.exists() else None,
+                "tracking_log_bytes": tracking_log.read_bytes() if tracking_log.exists() else None,
+                "preview_frame_name": preview_frame.name if preview_frame.exists() else None,
+                "preview_frame_bytes": preview_frame.read_bytes() if preview_frame.exists() else None,
+                "summary_json_name": summary_path.name if summary_path.exists() else f"{input_path.stem}_summary.json",
+                "summary_json_bytes": summary_path.read_bytes()
+                if summary_path.exists()
+                else json.dumps(summary, indent=2).encode("utf-8"),
+                "heatmap_name": heatmap_path.name if heatmap_path is not None and heatmap_path.exists() else None,
+                "heatmap_bytes": heatmap_path.read_bytes()
+                if heatmap_path is not None and heatmap_path.exists()
+                else None,
+                "tracking_df": tracking_df,
+            }
+        except Exception as exc:
+            st.error(
+                "Processing failed while preparing the default sample or running the pipeline. "
+                f"Details: {exc}"
+            )
 
 result_bundle = st.session_state.result_bundle
 if result_bundle is not None:
@@ -173,11 +183,12 @@ if result_bundle is not None:
 
     insight_cols = st.columns([1.5, 1.2])
     with insight_cols[0]:
-        st.subheader("Output Preview")
-        preview_frame_path = result_bundle.get("preview_frame_path")
-        if preview_frame_path is not None and Path(preview_frame_path).exists():
+        st.subheader("Tracked Output")
+        if result_bundle["output_video_bytes"] is not None:
+            st.video(result_bundle["output_video_bytes"])
+        if result_bundle["preview_frame_bytes"] is not None:
             st.image(
-                preview_frame_path,
+                result_bundle["preview_frame_bytes"],
                 caption="Annotated preview frame",
                 width="stretch",
             )
@@ -207,64 +218,48 @@ if result_bundle is not None:
             st.line_chart(per_frame_counts.set_index("frame_index"))
 
     if result_bundle["heatmap_bytes"] is not None:
-        heatmap_path = result_bundle.get("heatmap_path")
         st.subheader("Movement Heatmap")
-        if heatmap_path is not None and Path(heatmap_path).exists():
-            st.image(heatmap_path, caption="Movement heatmap", width="stretch")
+        st.image(result_bundle["heatmap_bytes"], caption="Movement heatmap", width="stretch")
 
     st.subheader("Downloads")
     download_cols = st.columns(4)
-    output_video_path = result_bundle.get("output_video_path")
-    if output_video_path is not None and Path(output_video_path).exists():
+    if result_bundle["output_video_bytes"] is not None:
         download_cols[0].download_button(
             "Annotated Video",
-            data=Path(output_video_path).read_bytes(),
-            file_name=Path(output_video_path).name,
+            data=result_bundle["output_video_bytes"],
+            file_name=result_bundle["output_video_name"],
             mime="video/mp4",
             width="stretch",
         )
-    tracking_log_path = result_bundle.get("tracking_log_path")
-    if tracking_log_path is not None and Path(tracking_log_path).exists():
+    if result_bundle["tracking_log_bytes"] is not None:
         download_cols[1].download_button(
             "Tracking CSV",
-            data=Path(tracking_log_path).read_bytes(),
-            file_name=Path(tracking_log_path).name,
+            data=result_bundle["tracking_log_bytes"],
+            file_name=result_bundle["tracking_log_name"],
             mime="text/csv",
             width="stretch",
         )
-    summary_json_path = result_bundle.get("summary_json_path")
-    if summary_json_path is not None and Path(summary_json_path).exists():
-        download_cols[2].download_button(
-            "Summary JSON",
-            data=Path(summary_json_path).read_bytes(),
-            file_name=Path(summary_json_path).name,
-            mime="application/json",
-            width="stretch",
-        )
-    else:
-        download_cols[2].download_button(
-            "Summary JSON",
-            data=json.dumps(summary, indent=2).encode("utf-8"),
-            file_name="tracking_summary.json",
-            mime="application/json",
-            width="stretch",
-        )
-    preview_frame_path = result_bundle.get("preview_frame_path")
-    if preview_frame_path is not None and Path(preview_frame_path).exists():
+    download_cols[2].download_button(
+        "Summary JSON",
+        data=result_bundle["summary_json_bytes"],
+        file_name=result_bundle["summary_json_name"],
+        mime="application/json",
+        width="stretch",
+    )
+    if result_bundle["preview_frame_bytes"] is not None:
         download_cols[3].download_button(
             "Preview Image",
-            data=Path(preview_frame_path).read_bytes(),
-            file_name=Path(preview_frame_path).name,
+            data=result_bundle["preview_frame_bytes"],
+            file_name=result_bundle["preview_frame_name"],
             mime="image/jpeg",
             width="stretch",
         )
 
-    heatmap_path = result_bundle.get("heatmap_path")
-    if heatmap_path is not None and Path(heatmap_path).exists():
+    if result_bundle["heatmap_bytes"] is not None:
         st.download_button(
             "Download Heatmap",
-            data=Path(heatmap_path).read_bytes(),
-            file_name=Path(heatmap_path).name,
+            data=result_bundle["heatmap_bytes"],
+            file_name=result_bundle["heatmap_name"],
             mime="image/jpeg",
             width="stretch",
         )
